@@ -101,6 +101,11 @@ final class RecorderModel: NSObject, ObservableObject {
 
     func chooseSource() {
         guard state == .idle else { return }
+        var configuration = SCContentSharingPickerConfiguration()
+        configuration.allowedPickerModes = [.singleDisplay, .singleWindow]
+        configuration.allowsChangingSelectedContent = false
+        if let id = Bundle.main.bundleIdentifier { configuration.excludedBundleIDs = [id] }
+        SCContentSharingPicker.shared.defaultConfiguration = configuration
         errorMessage = nil
         state = .selecting
         SCContentSharingPicker.shared.present()

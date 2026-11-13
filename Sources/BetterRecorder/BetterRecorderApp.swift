@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 enum AppServices {
     static let recorder = RecorderModel()
+    static let meeting = MeetingModel()
 }
 
 @MainActor
@@ -20,13 +21,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard AppServices.recorder.isActive else { return .terminateNow }
+        guard AppServices.recorder.isActive || AppServices.meeting.isActive else { return .terminateNow }
         guard !terminating else { return .terminateLater }
         terminating = true
         Task { @MainActor in
             await AppServices.recorder.stopRecording()
+            await AppServices.meeting.stopMeeting()
             terminating = false
-            let savedCleanly = !AppServices.recorder.isActive && AppServices.recorder.errorMessage == nil
+            let savedCleanly = !AppServices.recorder.isActive && !AppServices.meeting.isActive
+                && AppServices.recorder.errorMessage == nil && AppServices.meeting.errorMessage == nil
             sender.reply(toApplicationShouldTerminate: savedCleanly)
             if !savedCleanly {
                 sender.windows.first(where: { $0.title == "BetterRecorder" })?.makeKeyAndOrderFront(nil)
@@ -41,10 +44,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct BetterRecorderApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var recorder = AppServices.recorder
+    @StateObject private var meeting = AppServices.meeting
 
     var body: some Scene {
         Window("BetterRecorder", id: "recorder") {
-            RecorderView(model: recorder)
+            CaptureModeView(recorder: recorder, meeting: meeting)
                 .preferredColorScheme(.dark)
         }
         .windowStyle(.hiddenTitleBar)
@@ -62,29 +66,46 @@ struct BetterRecorderApp: App {
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
                 .disabled(recorder.state == .finishing || recorder.state == .selecting)
+                .disabled(meeting.isActive || meeting.state == .selecting)
                 Button(recorder.isMicrophoneMuted ? "Unmute Microphone" : "Mute Microphone") {
                     recorder.toggleMicrophoneMute()
                 }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
                 .disabled(!recorder.isRecording || !recorder.captureMicrophone)
                 Button("Choose Screen or Window…") { recorder.chooseSource() }
-                    .disabled(recorder.isActive)
+                    .disabled(recorder.isActive || meeting.isActive || meeting.state == .selecting)
                 Button("Open Recordings Folder") { recorder.revealOutputFolder() }
+            }
+            CommandMenu("Meeting") {
+                Button(meeting.isActive ? "Stop Meeting" : "Start Meeting") {
+                    Task {
+                        if meeting.isActive { await meeting.stopMeeting() }
+                        else if !meeting.hasSource { meeting.chooseSource() }
+                        else { await meeting.startMeeting() }
+                    }
+                }
+                .disabled(recorder.isActive || meeting.state == .stopping || (!meeting.isActive && !meeting.canStart))
+                Button(meeting.isMicrophoneMuted ? "Unmute Meeting Microphone" : "Mute Meeting Microphone") {
+                    meeting.toggleMicrophoneMute()
+                }.disabled(!meeting.isListening || !meeting.captureMicrophone)
+                Button("Open Meeting Transcript") { meeting.revealTranscript() }
+                    .disabled(meeting.sessionFolder == nil)
             }
         }
 
         MenuBarExtra {
-            RecorderMenu(model: recorder)
+            RecorderMenu(model: recorder, meeting: meeting)
         } label: {
-            Image(systemName: recorder.isActive ? "record.circle.fill" : "record.circle")
+            Image(systemName: recorder.isActive || meeting.isActive ? "record.circle.fill" : "record.circle")
                 .symbolRenderingMode(.hierarchical)
-                .accessibilityLabel(recorder.isActive ? "BetterRecorder recording" : "BetterRecorder")
+                .accessibilityLabel(recorder.isActive || meeting.isActive ? "BetterRecorder recording" : "BetterRecorder")
         }
     }
 }
 
 private struct RecorderMenu: View {
     @ObservedObject var model: RecorderModel
+    @ObservedObject var meeting: MeetingModel
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -94,7 +115,16 @@ private struct RecorderMenu: View {
             NSApplication.shared.activate(ignoringOtherApps: true)
         }
         Divider()
-        if model.isActive {
+        if meeting.isActive {
+            Text("Meeting · \(meeting.durationText)")
+            Button("Stop Meeting") { Task { await meeting.stopMeeting() } }
+                .disabled(meeting.state == .stopping)
+            if meeting.captureMicrophone {
+                Button(meeting.isMicrophoneMuted ? "Unmute Microphone" : "Mute Microphone") {
+                    meeting.toggleMicrophoneMute()
+                }.disabled(!meeting.isListening)
+            }
+        } else if model.isActive {
             Button(model.state == .finishing ? "Saving…" : "Stop & Save Recording") {
                 Task { await model.stopRecording() }
             }

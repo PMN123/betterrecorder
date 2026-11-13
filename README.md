@@ -1,6 +1,6 @@
 # BetterRecorder
 
-A native Mac app that records a screen or window together with system audio and an optional microphone. No audio driver, account, or network service is needed. Requires macOS 15 or later.
+A native Mac app for screen recording and audio-only meeting assistance. Record a screen or window with system audio and an optional microphone, or transcribe a meeting locally and send text into an existing Codex chat. Screen recording requires macOS 15 or later; Meeting mode requires macOS 26 or later.
 
 Built with SwiftUI and Apple's [ScreenCaptureKit](https://developer.apple.com/documentation/screencapturekit), using the native screen-sharing picker and a synchronized H.264/AAC MP4 writer.
 
@@ -20,6 +20,21 @@ The app keeps running in the menu bar after its window closes. Quitting during a
 
 Command-Shift-M mutes or unmutes the microphone while BetterRecorder is the active app. Choose input devices before starting; switching devices requires a new recording.
 
+## Audio-only Meeting mode
+
+1. Open **Meeting mode**. Keep the Mac connected to power for local transcription.
+2. Choose **Mac audio**, **Microphone**, or both, and select a microphone if needed.
+3. Click **Choose Mac audio** and select a screen in the macOS sharing picker. The stream supplies audio; this mode saves no video or audio recording.
+4. Search for and select an existing local **Codex chat**. No new chat is created, and its model and conversation history are preserved.
+5. Click **Start meeting & send transcript**. BetterRecorder opens that chat in Codex and displays a local live transcript. The microphone can be muted and unmuted during the session.
+6. Click **Stop meeting** to stop capture, finish transcription, and queue remaining text. **Open transcript** reveals the saved local text.
+
+Transcription uses Apple's on-device English (United States) SpeechAnalyzer model. The model may download on first use; speech recognition itself runs locally. Recognition can omit or mishear words. Live partial text appears immediately, while only finalized speech is forwarded, labeled with timestamps and its source. Use headphones when capturing both Mac audio and microphone to reduce duplicate speaker audio.
+
+Finalized text is batched roughly every 10 seconds. The [installed Codex CLI](https://learn.chatgpt.com/docs/cli/reference) uses your existing **ChatGPT sign-in**, so no API key is needed. Normal Codex usage limits apply. Keep the selected chat open: the desktop checks externally queued messages approximately every 10 seconds. A chat already working drains the queue after its current turn, and a paused chat needs you to resume it. **Queued** means Codex accepted the text into its queue; it does not mean an answer has finished.
+
+The selected destination is fixed for a session. Transcript text is framed as quoted meeting content, rather than instructions to execute commands or send messages. Only text goes to the selected chat; raw audio stays on the Mac. Completed text is saved under `~/Documents/BetterRecorder Meetings/<session>/transcript.txt`, in a private folder. On connection uncertainty, forwarding pauses and the full transcript remains there; check the chat before manually retrying to avoid duplicates. Responses to text already queued may arrive after you stop the meeting.
+
 ## macOS permissions
 
 Use the system picker to choose what BetterRecorder may capture. If macOS asks, allow screen and system-audio recording. If capture is blocked, check **System Settings → Privacy & Security → Screen & System Audio Recording**, then reopen the app if macOS requests it.
@@ -32,7 +47,7 @@ Protected streaming video and some apps may block capture or produce silent/blac
 
 This folder is the complete source. It has no external package dependencies.
 
-Clone the repository, then build with Xcode 16.2 or later and Swift 6 installed:
+Clone the repository, then build with Xcode 26 or later and Swift 6 installed:
 
 ```sh
 git clone https://github.com/PMN123/betterrecorder.git
@@ -63,3 +78,11 @@ Run the media regression checks without screen or microphone access:
 ```
 
 These encode and decode generated audio/video to verify mixed 44.1/48 kHz inputs, live microphone mute and resume, uninterrupted system audio, a single mixed audio track, static-screen duration, empty captures, and cancellation. Temporary test media is removed afterward.
+
+Run the meeting routing and transcript batching checks without opening or sending to a real chat:
+
+```sh
+./Support/tests/run-meeting.sh
+```
+
+Local SpeechAnalyzer has also been exercised with generated speech, including progressive results, final results, and finalization. These checks do not assert perfect transcription accuracy or prove that a particular live chat processed a batch.

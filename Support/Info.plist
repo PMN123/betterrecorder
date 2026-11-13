@@ -6,8 +6,8 @@
     <key>CFBundleDisplayName</key><string>BetterRecorder</string>
     <key>CFBundleExecutable</key><string>BetterRecorder</string>
     <key>CFBundleIdentifier</key><string>io.github.PMN123.BetterRecorder</string>
-    <key>CFBundleVersion</key><string>1</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundleVersion</key><string>2</string>
+    <key>CFBundleShortVersionString</key><string>1.1</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>LSMinimumSystemVersion</key><string>15.0</string>
@@ -18,5 +18,7 @@
     <string>BetterRecorder includes the sound playing on your Mac in your screen recordings.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>BetterRecorder records the microphone you select so you can add your voice to a screen recording.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>BetterRecorder transcribes meeting audio locally on your Mac.</string>
 </dict>
 </plist>
